@@ -139,6 +139,26 @@ def load_yaml(filename):
         all_includes.append(filename)
 
 
+def load_toml(filename):
+    try:
+        import yaml
+        yaml.SafeLoader.add_constructor(u'!radians', construct_angle_radians)
+        yaml.SafeLoader.add_constructor(u'!degrees', construct_angle_degrees)
+    except Exception:
+        raise XacroException("yaml support not available; install python-yaml")
+
+    filename = abs_filename_spec(filename)
+    f = open(filename)
+    filestack.append(filename)
+    try:
+        return YamlListWrapper.wrap(yaml.safe_load(f))
+    finally:
+        f.close()
+        filestack.pop()
+        global all_includes
+        all_includes.append(filename)
+
+
 def tokenize(s, sep=',; ', skip_empty=True):
     results = re.split('[{}]'.format(sep), s)
     if skip_empty:
