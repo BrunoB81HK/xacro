@@ -101,7 +101,7 @@ def reqd_attrs(tag, attrs):
     :raise RuntimeError: if required attribute is missing
     """
     result = opt_attrs(tag, attrs)
-    for (res, name) in zip(result, attrs):
+    for res, name in zip(result, attrs):
         if res is None:
             raise RuntimeError("%s: missing attribute '%s'" % (tag.nodeName, name))
     return result
@@ -119,12 +119,14 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
     a_names = sorted(attrs.keys())
 
     for a_name in a_names:
-        writer.write(" %s=\"" % a_name)
+        writer.write(' %s="' % a_name)
         xml.dom.minidom._write_data(writer, attrs[a_name].value)
-        writer.write("\"")
+        writer.write('"')
     if self.childNodes:
-        if len(self.childNodes) == 1 \
-           and self.childNodes[0].nodeType == xml.dom.minidom.Node.TEXT_NODE:
+        if (
+            len(self.childNodes) == 1
+            and self.childNodes[0].nodeType == xml.dom.minidom.Node.TEXT_NODE
+        ):
             writer.write(">")
             self.childNodes[0].writexml(writer, "", "", "")
             writer.write("</%s>%s" % (self.tagName, newl))
@@ -132,8 +134,9 @@ def fixed_writexml(self, writer, indent="", addindent="", newl=""):
         writer.write(">%s" % newl)
         for node in self.childNodes:
             # skip whitespace-only text nodes
-            if node.nodeType == xml.dom.minidom.Node.TEXT_NODE and \
-                    (not node.data or node.data.isspace()):
+            if node.nodeType == xml.dom.minidom.Node.TEXT_NODE and (
+                not node.data or node.data.isspace()
+            ):
                 continue
             node.writexml(writer, indent + addindent, addindent, newl)
         writer.write("%s</%s>%s" % (indent, self.tagName, newl))

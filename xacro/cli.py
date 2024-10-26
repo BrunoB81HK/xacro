@@ -30,43 +30,81 @@
 # Authors: Stuart Glaser, William Woodall, Robert Haschke
 # Maintainer: Morgan Quigley <morgan@osrfoundation.org>
 
+import optparse
+import sys
 import textwrap
-from optparse import OptionParser, IndentedHelpFormatter
-from .color import colorize, warning, message
+import typing
+
+__all__ = (
+    "error",
+    "process_args",
+)
 
 
-class ColoredOptionParser(OptionParser):
-    def error(self, message):
-        msg = colorize(message, 'red')
-        OptionParser.error(self, msg)
+_ansi = {"red": 91, "yellow": 93}  # bold colors
+REMAP = ":="  # copied from rosgraph.names
 
 
-_original_wrap = textwrap.wrap
+def colorize(
+    msg: str, color: str, file: typing.TextIO = sys.stderr, alt_text: str = ""
+) -> str:
+    color = _ansi.get(color, None)
+
+    if color and hasattr(file, "isatty") and file.isatty():
+        return f"\033[{color:d}m{msg:s}\033[0m"
+
+    return f"{alt_text:s}{msg:s}"
 
 
-def wrap_with_newlines(text, width, **kwargs):
-    result = []
-    for paragraph in text.split('\n'):
-        result.extend(_original_wrap(paragraph, width, **kwargs))
-    return result
+def message(msg: str, *args, **kwargs) -> None:
+    file = kwargs.get("file", sys.stderr)
+    alt_text = kwargs.get("alt_text", None)
+    color = kwargs.get("color", None)
+    print(colorize(msg, color, file, alt_text), *args, file=file)
 
 
-class IndentedHelpFormatterWithNL(IndentedHelpFormatter):
-    def __init__(self, *args, **kwargs):
-        IndentedHelpFormatter.__init__(self, *args, **kwargs)
+def warning(*args, **kwargs) -> None:
+    defaults = dict(file=sys.stderr, alt_text="warning: ", color="yellow")
+    defaults.update(kwargs)
+    message(*args, **defaults)
 
-    def format_option(self, text):
-        textwrap.wrap, old = wrap_with_newlines, textwrap.wrap
-        result = IndentedHelpFormatter.format_option(self, text)
+
+def error(*args, **kwargs) -> None:
+    defaults = dict(file=sys.stderr, alt_text="error: ", color="red")
+    defaults.update(kwargs)
+    message(*args, **defaults)
+
+
+class ColoredOptionParser(optparse.OptionParser):
+    def error(self, message: str) -> None:
+        msg = colorize(message, "red")
+        optparse.OptionParser.error(self, msg)
+
+
+class IndentedHelpFormatterWithNL(optparse.IndentedHelpFormatter):
+    _original_wrap = textwrap.wrap
+
+    def __init__(self, *args, **kwargs) -> None:
+        optparse.IndentedHelpFormatter.__init__(self, *args, **kwargs)
+
+    @classmethod
+    def wrap_with_newlines(cls, text: str, width: int, **kwargs) -> list[str]:
+        result = list()
+        for paragraph in text.split("\n"):
+            result.extend(cls._original_wrap(paragraph, width, **kwargs))
+        return result
+
+    def format_option(self, text: str) -> str:
+        textwrap.wrap, old = (
+            IndentedHelpFormatterWithNL.wrap_with_newlines,
+            textwrap.wrap,
+        )
+        result = optparse.IndentedHelpFormatter.format_option(self, text)
         textwrap.wrap = old
         return result
 
 
-# copied from rosgraph.names
-REMAP = ":="
-
-
-def load_mappings(argv):
+def load_mappings(argv: str) -> dict[str, str]:
     """
     Load name mappings encoded in command-line arguments. This will filter
     out any parameter assignment mappings.
@@ -82,7 +120,7 @@ def load_mappings(argv):
             try:
                 src, dst = [x.strip() for x in arg.split(REMAP)]
                 if src and dst:
-                    if len(src) > 1 and src[0] == '_' and src[1] != '_':
+                    if len(src) > 1 and src[0] == "_" and src[1] != "_":
                         # ignore parameter assignment mappings
                         pass
                     else:
@@ -92,29 +130,48 @@ def load_mappings(argv):
     return mappings
 
 
-def process_args(argv, require_input=True):
-    parser = ColoredOptionParser(usage="usage: %prog [options] <input>",
-                                 formatter=IndentedHelpFormatterWithNL())
-    parser.add_option("-o", dest="output", metavar="FILE",
-                      help="write output to FILE instead of stdout")
-    parser.add_option("--deps", action="store_true", dest="just_deps",
-                      help="print file dependencies")
-    parser.add_option("--inorder", "-i", action="store_true", dest="in_order",
-                      help="processing in read order (default, can be omitted)")
+def process_args(argv: str, require_input: bool = True) -> tuple[dict, str]:
+    parser = ColoredOptionParser(
+        usage="usage: %prog [options] <input>", formatter=IndentedHelpFormatterWithNL()
+    )
+    parser.add_option(
+        "-o",
+        dest="output",
+        metavar="FILE",
+        help="write output to FILE instead of stdout",
+    )
+    parser.add_option(
+        "--deps", action="store_true", dest="just_deps", help="print file dependencies"
+    )
+    parser.add_option(
+        "--inorder",
+        "-i",
+        action="store_true",
+        dest="in_order",
+        help="processing in read order (default, can be omitted)",
+    )
 
     # verbosity options
-    parser.add_option("-q", action="store_const", dest="verbosity", const=0,
-                      help="quiet operation, suppressing warnings")
-    parser.add_option("-v", action="count", dest="verbosity",
-                      help="increase verbosity")
-    parser.add_option("--verbosity", metavar='level', dest="verbosity", type='int',
-                      help=textwrap.dedent("""\
-                      set verbosity level
-                      0: quiet, suppressing warnings
-                      1: default, showing warnings and error locations
-                      2: show stack trace
-                      3: log property definitions and usage on top level
-                      4: log property definitions and usage on all levels"""))
+    parser.add_option(
+        "-q",
+        action="store_const",
+        dest="verbosity",
+        const=0,
+        help="quiet operation, suppressing warnings",
+    )
+    parser.add_option("-v", action="count", dest="verbosity", help="increase verbosity")
+    parser.add_option(
+        "--verbosity",
+        metavar="level",
+        dest="verbosity",
+        type="int",
+        help="set verbosity level"
+        "0: quiet, suppressing warnings"
+        "1: default, showing warnings and error locations"
+        "2: show stack trace"
+        "3: log property definitions and usage on top level"
+        "4: log property definitions and usage on all levels",
+    )
 
     # process substitution args
     try:
@@ -128,7 +185,9 @@ def process_args(argv, require_input=True):
     parser.set_defaults(just_deps=False, verbosity=1)
     (options, pos_args) = parser.parse_args(filtered_args)
     if options.in_order:
-        message("xacro: in-order processing became default in ROS Melodic. You can drop the option.")
+        message(
+            "xacro: in-order processing became default in ROS Melodic. You can drop the option."
+        )
     options.in_order = True
 
     if len(pos_args) != 1:
@@ -138,4 +197,4 @@ def process_args(argv, require_input=True):
             pos_args = [None]
 
     options.mappings = mappings
-    return options, pos_args[0]
+    return vars(options), pos_args[0]

@@ -41,17 +41,22 @@ import math
 import os
 import yaml
 
-from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
+from ament_index_python.packages import (
+    get_package_share_directory,
+    PackageNotFoundError,
+)
 from io import StringIO
 
 
 class SubstitutionException(Exception):
     """Base class for exceptions in substitution_args routines."""
+
     pass
 
 
 class ArgException(SubstitutionException):
     """Exception for missing $(arg) values."""
+
     pass
 
 
@@ -65,8 +70,7 @@ def _eval_env(name):
     try:
         return os.environ[name]
     except KeyError as e:
-        raise SubstitutionException(
-            'environment variable %s is not set' % str(e))
+        raise SubstitutionException("environment variable %s is not set" % str(e))
 
 
 def _env(resolved, a, args, context):
@@ -79,11 +83,12 @@ def _env(resolved, a, args, context):
     """
     if len(args) != 1:
         raise SubstitutionException(
-            '$(env var) command only accepts one argument [%s]' % a)
-    return resolved.replace('$(%s)' % a, _eval_env(args[0]))
+            "$(env var) command only accepts one argument [%s]" % a
+        )
+    return resolved.replace("$(%s)" % a, _eval_env(args[0]))
 
 
-def _eval_optenv(name, default=''):
+def _eval_optenv(name, default=""):
     """
     Eval_optenv
 
@@ -107,8 +112,11 @@ def _optenv(resolved, a, args, context):
     """
     if len(args) == 0:
         raise SubstitutionException(
-            '$(optenv var) must specify an environment variable [%s]' % a)
-    return resolved.replace('$(%s)' % a, _eval_optenv(args[0], default=' '.join(args[1:])))
+            "$(optenv var) must specify an environment variable [%s]" % a
+        )
+    return resolved.replace(
+        "$(%s)" % a, _eval_optenv(args[0], default=" ".join(args[1:]))
+    )
 
 
 def _eval_dirname(filename):
@@ -120,8 +128,9 @@ def _eval_dirname(filename):
     @rtype path
     """
     if not filename:
-        raise SubstitutionException('Cannot substitute $(dirname),'
-                                    'no file/directory information available.')
+        raise SubstitutionException(
+            "Cannot substitute $(dirname)," "no file/directory information available."
+        )
     return os.path.abspath(os.path.dirname(filename))
 
 
@@ -134,7 +143,7 @@ def _dirname(resolved, a, args, context):
     @raise SubstitutionException: if no information about the current launch file is available,
     for example if XML was passed via stdin, or this is a remote launch.
     """
-    return resolved.replace('$(%s)' % a, _eval_dirname(context.get('filename', None)))
+    return resolved.replace("$(%s)" % a, _eval_dirname(context.get("filename", None)))
 
 
 def _eval_find(pkg):
@@ -150,13 +159,11 @@ def _find(resolved, a, args, context):
     :raises: :exc:SubstitutionException: if PKG invalidly specified
     """
     if len(args) != 1:
-        raise SubstitutionException(
-            '$(find pkg) accepts exactly one argument [%s]' % a)
-    return resolved.replace('$(%s)' % a, _eval_find(args[0]))
+        raise SubstitutionException("$(find pkg) accepts exactly one argument [%s]" % a)
+    return resolved.replace("$(%s)" % a, _eval_find(args[0]))
 
 
 def _eval_arg(name, args):
-
     try:
         return args[name]
     except KeyError:
@@ -172,14 +179,14 @@ def _arg(resolved, a, args, context):
     """
     if len(args) == 0:
         raise SubstitutionException(
-            '$(arg var) must specify a variable name [%s]' % (a))
+            "$(arg var) must specify a variable name [%s]" % (a)
+        )
     elif len(args) > 1:
-        raise SubstitutionException(
-            '$(arg var) may only specify one arg [%s]' % (a))
+        raise SubstitutionException("$(arg var) may only specify one arg [%s]" % (a))
 
-    if 'arg' not in context:
-        context['arg'] = {}
-    return resolved.replace('$(%s)' % a, _eval_arg(name=args[0], args=context['arg']))
+    if "arg" not in context:
+        context["arg"] = {}
+    return resolved.replace("$(%s)" % a, _eval_arg(name=args[0], args=context["arg"]))
 
 
 # Create a dictionary of global symbols that will be available in the eval
@@ -187,12 +194,16 @@ def _arg(resolved, a, args, context):
 # add true and false for convenience (because we accept those lower-case strings
 # as boolean values in XML).
 _eval_dict = {
-    'true': True, 'false': False,
-    'True': True, 'False': False,
-    '__builtins__': {k: __builtins__[k] for k in ['list', 'dict', 'map', 'str', 'float', 'int']},
-    'env': _eval_env,
-    'optenv': _eval_optenv,
-    'find': _eval_find
+    "true": True,
+    "false": False,
+    "True": True,
+    "False": False,
+    "__builtins__": {
+        k: __builtins__[k] for k in ["list", "dict", "map", "str", "float", "int"]
+    },
+    "env": _eval_env,
+    "optenv": _eval_optenv,
+    "find": _eval_find,
 }
 # also define all math symbols and functions
 _eval_dict.update(math.__dict__)
@@ -211,10 +222,10 @@ def convert_value(value, type_):
     type_ = type_.lower()
     # currently don't support XML-RPC date, dateTime, maps, or list
     # types
-    if type_ == 'auto':
+    if type_ == "auto":
         # attempt numeric conversion
         try:
-            if '.' in value:
+            if "." in value:
                 return float(value)
             else:
                 return int(value)
@@ -222,24 +233,24 @@ def convert_value(value, type_):
             pass
         # bool
         lval = value.lower()
-        if lval == 'true' or lval == 'false':
-            return convert_value(value, 'bool')
+        if lval == "true" or lval == "false":
+            return convert_value(value, "bool")
         # string
         return value
-    elif type_ == 'str' or type_ == 'string':
+    elif type_ == "str" or type_ == "string":
         return value
-    elif type_ == 'int':
+    elif type_ == "int":
         return int(value)
-    elif type_ == 'double':
+    elif type_ == "double":
         return float(value)
-    elif type_ == 'bool' or type_ == 'boolean':
+    elif type_ == "bool" or type_ == "boolean":
         value = value.lower().strip()
-        if value == 'true' or value == '1':
+        if value == "true" or value == "1":
             return True
-        elif value == 'false' or value == '0':
+        elif value == "false" or value == "0":
             return False
         raise ValueError("%s is not a '%s' type" % (value, type_))
-    elif type_ == 'yaml':
+    elif type_ == "yaml":
         try:
             return yaml.load(value)
         except yaml.parser.ParserError as e:
@@ -249,7 +260,6 @@ def convert_value(value, type_):
 
 
 class _DictWrapper(object):
-
     def __init__(self, args, functions):
         self._args = args
         self._functions = functions
@@ -258,34 +268,31 @@ class _DictWrapper(object):
         try:
             return self._functions[key]
         except KeyError:
-            return convert_value(self._args[key], 'auto')
+            return convert_value(self._args[key], "auto")
 
 
 def _eval(s, context):
-
-    if 'arg' not in context:
-        context['arg'] = {}
+    if "arg" not in context:
+        context["arg"] = {}
 
     # inject arg context
     def _eval_arg_context(name):
-        return convert_value(_eval_arg(name, args=context['arg']), 'auto')
+        return convert_value(_eval_arg(name, args=context["arg"]), "auto")
 
     # inject dirname context
     def _eval_dirname_context():
-        return _eval_dirname(context['filename'])
+        return _eval_dirname(context["filename"])
 
-    functions = {
-        'arg': _eval_arg_context,
-        'dirname': _eval_dirname_context
-    }
+    functions = {"arg": _eval_arg_context, "dirname": _eval_dirname_context}
     functions.update(_eval_dict)
 
     # ignore values containing double underscores (for safety)
     # http://nedbatchelder.com/blog/201206/eval_really_is_dangerous.html
-    if s.find('__') >= 0:
+    if s.find("__") >= 0:
         raise SubstitutionException(
-            '$(eval ...) may not contain double underscore expressions')
-    return str(eval(s, {}, _DictWrapper(context['arg'], functions)))
+            "$(eval ...) may not contain double underscore expressions"
+        )
+    return str(eval(s, {}, _DictWrapper(context["arg"], functions)))
 
 
 def resolve_args(arg_str, context=None, filename=None):
@@ -309,29 +316,30 @@ def resolve_args(arg_str, context=None, filename=None):
     if not arg_str:
         return arg_str
     # special handling of $(eval ...)
-    if arg_str.startswith('$(eval ') and arg_str.endswith(')'):
+    if arg_str.startswith("$(eval ") and arg_str.endswith(")"):
         return _eval(arg_str[7:-1], context)
     # first resolve variables like 'env' and 'arg'
     commands = {
-        'env': _env,
-        'optenv': _optenv,
-        'dirname': _dirname,
-        'arg': _arg,
-        'find': _find,
+        "env": _env,
+        "optenv": _optenv,
+        "dirname": _dirname,
+        "arg": _arg,
+        "find": _find,
     }
     resolved = _resolve_args(arg_str, context, commands)
     return resolved
 
 
 def _resolve_args(arg_str, context, commands):
-
-    valid = ['find', 'env', 'optenv', 'dirname', 'arg']
+    valid = ["find", "env", "optenv", "dirname", "arg"]
     resolved = arg_str
     for a in _collect_args(arg_str):
-        splits = [s for s in a.split(' ') if s]
+        splits = [s for s in a.split(" ") if s]
         if not splits[0] in valid:
-            raise SubstitutionException('Unknown substitution command [%s]. '
-                                        'Valid commands are %s' % (a, valid))
+            raise SubstitutionException(
+                "Unknown substitution command [%s]. "
+                "Valid commands are %s" % (a, valid)
+            )
         command = splits[0]
         args = splits[1:]
         if command in commands:
@@ -363,21 +371,25 @@ def _collect_args(arg_str):
     state = _OUT
     for c in arg_str:
         # No escapes supported
-        if c == '$':
+        if c == "$":
             if state == _OUT:
                 state = _DOLLAR
             elif state == _DOLLAR:
                 pass
             else:
-                raise SubstitutionException('Dollar signs "$" cannot be '
-                                            'inside of substitution args [%s]' % arg_str)
-        elif c == '(':
+                raise SubstitutionException(
+                    'Dollar signs "$" cannot be '
+                    "inside of substitution args [%s]" % arg_str
+                )
+        elif c == "(":
             if state == _DOLLAR:
                 state = _LP
             elif state != _OUT:
-                raise SubstitutionException('Invalid left parenthesis "(" '
-                                            'in substitution args [%s]' % arg_str)
-        elif c == ')':
+                raise SubstitutionException(
+                    'Invalid left parenthesis "(" '
+                    "in substitution args [%s]" % arg_str
+                )
+        elif c == ")":
             if state == _IN:
                 # save contents of collected buffer
                 args.append(buff.getvalue())
